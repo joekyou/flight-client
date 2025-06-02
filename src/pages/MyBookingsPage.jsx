@@ -105,20 +105,22 @@ const MyBookingsPage = () => {
                   <div className="flex justify-between items-center">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 mb-1">
-                        Booking Reference: <span className="font-medium">{booking.reference}</span>
+                        Booking Reference: <span className="font-medium">{booking.bookingReference}</span>
                       </h3>
                     </div>
                     <BookingStatus status={booking.status} />
                   </div>
                 </div>
 
-                {/* Outbound Flight Details */}
+                {/* Flight Details */}
                 <div className="px-6 py-4 border-b border-gray-200">
-                  <h4 className="text-sm font-medium text-gray-700 mb-3">Outbound Flight</h4>
+                  <h4 className="text-sm font-medium text-gray-700 mb-3">
+                    {booking.mainFlightType === 'RETURN' ? 'Return Flight' : 'Outbound Flight'}
+                  </h4>
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-sm text-gray-500">From</p>
-                      <p className="text-base font-medium">{booking.flight.departure}</p>
+                      <p className="text-base font-medium">{booking.flight.departureAirport}</p>
                       <p className="text-base font-medium">{formatDateTime(booking.flight.departureTime)}</p>
                     </div>
                     <div className="flex-1 mx-4 border-t border-gray-300 border-dashed relative">
@@ -127,7 +129,7 @@ const MyBookingsPage = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-500">To</p>
-                      <p className="text-base font-medium">{booking.flight.destination}</p>
+                      <p className="text-base font-medium">{booking.flight.destinationAirport}</p>
                       <p className="text-base font-medium">{formatDateTime(booking.flight.arrivalTime)}</p>
                     </div>
                   </div>
@@ -140,7 +142,7 @@ const MyBookingsPage = () => {
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="text-sm text-gray-500">From</p>
-                        <p className="text-base font-medium">{booking.returnFlight.departure}</p>
+                        <p className="text-base font-medium">{booking.returnFlight.departureAirport}</p>
                         <p className="text-base font-medium">{formatDateTime(booking.returnFlight.departureTime)}</p>
                       </div>
                       <div className="flex-1 mx-4 border-t border-gray-300 border-dashed relative">
@@ -149,7 +151,7 @@ const MyBookingsPage = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-gray-500">To</p>
-                        <p className="text-base font-medium">{booking.returnFlight.destination}</p>
+                        <p className="text-base font-medium">{booking.returnFlight.destinationAirport}</p>
                         <p className="text-base font-medium">{formatDateTime(booking.returnFlight.arrivalTime)}</p>
                       </div>
                     </div>
@@ -159,7 +161,7 @@ const MyBookingsPage = () => {
                 <div className="px-6 py-4 border-t border-gray-200">
                   <div className="flex justify-between items-center text-sm text-gray-600">
                     <div>
-                      <p>Passengers: {booking.passengers.length}</p>
+                      <p>Passengers: {booking.numberOfPassengers}</p>
                       <p className="font-medium text-gray-900">{formatPrice(booking.totalPrice)}</p>
                     </div>
                     <button

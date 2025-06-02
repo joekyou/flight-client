@@ -11,10 +11,15 @@ import http from './http';
  * @returns {Promise<Object>} 预订确认信息，包含往返航班详情
  */
 export const createBooking = async (bookingData) => {
-  // 确保发送完整的往返航班信息
+  // 确保数据结构匹配后端 BookingDTO
   const payload = {
-    ...bookingData,
-    type: bookingData.returnFlightId ? 'ROUND_TRIP' : 'ONE_WAY'
+    flightId: bookingData.flightId,                    // 主航班ID
+    returnFlightId: bookingData.returnFlightId,        // 返程航班ID（如果有）
+    flightType: bookingData.flightType,                // ONE_WAY 或 ROUND_TRIP
+    mainFlightType: bookingData.mainFlightType,        // OUTBOUND 或 RETURN
+    numberOfPassengers: bookingData.numberOfPassengers,
+    totalPrice: bookingData.totalPrice,
+    passengers: bookingData.passengers
   };
   
   const response = await http.post('/bookings', payload);

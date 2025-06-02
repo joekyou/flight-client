@@ -6,7 +6,7 @@ import Select from 'react-select';
 import { getAirports, searchAirports, formatAirportOptions } from '../services/airportApi';
 import LoadingSpinner from './LoadingSpinner';
 
-const FlightSearchForm = ({ className = '' }) => {
+const FlightSearchForm = ({ className = '', onSearch }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -81,7 +81,20 @@ const FlightSearchForm = ({ className = '' }) => {
         searchParams.append('returnDate', formatDateToYYYYMMDD(formData.returnDate));
       }
 
-      navigate(`/search?${searchParams.toString()}`);
+      const url = `/search?${searchParams.toString()}`;
+      if (window.location.pathname === '/search') {
+        // 如果已经在搜索页面，先更新URL，等待URL更新完成后再触发搜索
+        navigate(url, { replace: true });
+        // 使用setTimeout确保URL更新后再触发搜索
+        setTimeout(() => {
+          if (onSearch) {
+            onSearch();
+          }
+        }, 0);
+      } else {
+        // 如果不在搜索页面，直接导航
+        navigate(url);
+      }
     } finally {
       // Only reset loading after a short delay to prevent double submissions
       setTimeout(() => setLoading(false), 500);
@@ -185,7 +198,10 @@ const FlightSearchForm = ({ className = '' }) => {
               selected={formData.returnDate}
               onChange={(date) => handleDateChange(date, 'returnDate')}
               minDate={formData.departDate}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className={`w-full rounded-md shadow-sm sm:text-sm
+                ${!formData.isRoundTrip 
+                  ? 'bg-gray-100 border-gray-200 cursor-not-allowed' 
+                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'}`}
               placeholderText="One way"
               disabled={!formData.isRoundTrip}
             />
@@ -204,7 +220,7 @@ const FlightSearchForm = ({ className = '' }) => {
                 isRoundTrip: e.target.checked,
                 returnDate: e.target.checked ? prev.returnDate : null
               }))}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer transition-all duration-200 ease-in-out hover:border-blue-500 checked:bg-blue-600 checked:hover:bg-blue-700"
             />
             <label htmlFor="roundTrip" className="ml-2 text-sm text-gray-700">
               Round trip

@@ -6,9 +6,11 @@ import ErrorMessage from '../components/ErrorMessage';
 import { formatDateTime } from '../utils/formatDate';
 import { formatPrice } from '../utils/formatPrice';
 
-const FlightDetails = ({ flight, type }) => (
+const FlightDetails = ({ flight, isReturnFlight = false }) => (
   <div className="px-6 py-4 border-b border-gray-200">
-    <h4 className="text-lg font-medium text-gray-900 mb-4">{type} Flight Details</h4>
+    <h4 className="text-lg font-medium text-gray-900 mb-4">
+      {isReturnFlight ? 'Return Flight Details' : 'Outbound Flight Details'}
+    </h4>
     <div className="flex items-center justify-between mb-4">
       <div>
         <p className="text-sm text-gray-500">Departure</p>
@@ -118,12 +120,18 @@ const BookingDetailsPage = () => {
             </div>
           </div>
 
-          {/* Outbound Flight Details */}
-          <FlightDetails flight={booking.flight} type="Outbound" />
+          {/* Main Flight Details */}
+          <FlightDetails 
+            flight={booking.flight} 
+            isReturnFlight={booking.mainFlightType === 'RETURN'} 
+          />
 
-          {/* Return Flight Details */}
+          {/* Return Flight Details (if exists) */}
           {booking.returnFlight && (
-            <FlightDetails flight={booking.returnFlight} type="Return" />
+            <FlightDetails 
+              flight={booking.returnFlight} 
+              isReturnFlight={true} 
+            />
           )}
 
           {/* Passenger Information */}

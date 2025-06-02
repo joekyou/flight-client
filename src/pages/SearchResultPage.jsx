@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { transformFlights } from '../utils/transformFlightData';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { searchFlights } from '../services/flightApi';
 import FlightCard from '../components/FlightCard';
 import FlightSearchForm from '../components/FlightSearchForm';
@@ -26,6 +26,7 @@ const ERROR_MESSAGES = {
 const SearchResultPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { selectOutboundFlight, selectReturnFlight } = useBooking();
   
   const [outboundFlights, setOutboundFlights] = useState([]);
@@ -34,7 +35,8 @@ const SearchResultPage = () => {
   const [error, setError] = useState(null);
   const [selectedOutboundId, setSelectedOutboundId] = useState(null);
   const [selectedReturnId, setSelectedReturnId] = useState(null);
-  const [sortBy, setSortBy] = useState('price'); // price, duration, departure
+  const [sortBy, setSortBy] = useState('price');
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   // 从 URL 参数中获取搜索条件
   const searchCriteria = {
@@ -45,28 +47,32 @@ const SearchResultPage = () => {
     passengers: parseInt(searchParams.get('passengers') || '1', 10)
   };
 
-  useEffect(() => {
-    let mounted = true;
-    
   const loadFlights = async () => {
-    if (!searchCriteria.from || !searchCriteria.to || !searchCriteria.departDate) {
+    // 获取当前URL中的最新参数
+    const params = new URLSearchParams(window.location.search);
+    const currentCriteria = {
+      from: params.get('from'),
+      to: params.get('to'),
+      departDate: params.get('departDate'),
+      returnDate: params.get('returnDate'),
+      passengers: parseInt(params.get('passengers') || '1', 10)
+    };
+
+    if (!currentCriteria.from || !currentCriteria.to || !currentCriteria.departDate) {
       setError(ERROR_MESSAGES.NO_CRITERIA);
       toast.error(ERROR_MESSAGES.NO_CRITERIA);
+      setLoading(false);
       return;
     }
     
     setLoading(true);
     setError(null);
-    setOutboundFlights([]);
-    setReturnFlights([]);
     
     try {
-      console.log('Searching flights with criteria:', searchCriteria);
-      
       // Fetch outbound flights
       const outboundResponse = await searchFlights({
-        ...searchCriteria,
-        returnDate: null // Ensure one-way search for outbound
+        ...currentCriteria,
+        returnDate: null
       });
       
       if (!outboundResponse || !Array.isArray(outboundResponse)) {
@@ -74,71 +80,103 @@ const SearchResultPage = () => {
       }
       
       let returnResponse = null;
-      if (searchCriteria.returnDate) {
-        console.log('Searching return flights...');
-        // Fetch return flights if return date is specified
+      if (currentCriteria.returnDate) {
         returnResponse = await searchFlights({
-          from: searchCriteria.to, // Swap from/to for return flight
-          to: searchCriteria.from,
-          departDate: searchCriteria.returnDate, // Use return date as departure
-          passengers: searchCriteria.passengers
+          from: currentCriteria.to,
+          to: currentCriteria.from,
+          departDate: currentCriteria.returnDate,
+          passengers: currentCriteria.passengers
         });
         
         if (returnResponse && !Array.isArray(returnResponse)) {
           throw new Error(ERROR_MESSAGES.INVALID_FORMAT);
         }
       }
-        
-        if (mounted) {
-          const transformedOutbound = transformFlights(outboundResponse);
-          if (transformedOutbound.length === 0) {
-            setError(ERROR_MESSAGES.NO_OUTBOUND);
-            toast.warning(ERROR_MESSAGES.NO_OUTBOUND);
-          } else {
-            console.log('Transformed outbound flights:', transformedOutbound);
-            setOutboundFlights(transformedOutbound);
-          }
-          
-          if (returnResponse) {
-            const transformedReturn = transformFlights(returnResponse);
-            if (transformedReturn.length === 0 && searchCriteria.returnDate) {
-              setError(ERROR_MESSAGES.NO_RETURN);
-              toast.warning(ERROR_MESSAGES.NO_RETURN);
-            } else {
-              console.log('Transformed return flights:', transformedReturn);
-              setReturnFlights(transformedReturn);
-            }
-          } else {
-            setReturnFlights([]);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading flights:', err);
-        if (mounted) {
-          const errorMessage = err.message === ERROR_MESSAGES.INVALID_FORMAT
-            ? ERROR_MESSAGES.INVALID_FORMAT
-            : err.name === 'NetworkError'
-              ? ERROR_MESSAGES.NETWORK_ERROR
-              : err.response?.status === 500
-                ? ERROR_MESSAGES.SERVER_ERROR
-                : ERROR_MESSAGES.UNKNOWN;
-          
-          setError(errorMessage);
-          toast.error(errorMessage);
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
+      
+      const transformedOutbound = transformFlights(outboundResponse);
+      if (transformedOutbound.length === 0) {
+        setError(ERROR_MESSAGES.NO_OUTBOUND);
+        toast.warning(ERROR_MESSAGES.NO_OUTBOUND);
+      } else {
+        setOutboundFlights(transformedOutbound);
+      }
+      
+      if (returnResponse) {
+        const transformedReturn = transformFlights(returnResponse);
+        if (transformedReturn.length === 0 && currentCriteria.returnDate) {
+          setError(ERROR_MESSAGES.NO_RETURN);
+          toast.warning(ERROR_MESSAGES.NO_RETURN);
+        } else {
+          setReturnFlights(transformedReturn);
         }
       }
-    };
+    } catch (err) {
+      console.error('Error loading flights:', err);
+      const errorMessage = err.message === ERROR_MESSAGES.INVALID_FORMAT
+        ? ERROR_MESSAGES.INVALID_FORMAT
+        : err.name === 'NetworkError'
+          ? ERROR_MESSAGES.NETWORK_ERROR
+          : err.response?.status === 500
+            ? ERROR_MESSAGES.SERVER_ERROR
+            : ERROR_MESSAGES.UNKNOWN;
+      
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+      setInitialLoadDone(true);
+    }
+  };
 
-    loadFlights();
+  // 初始加载航班信息
+  useEffect(() => {
+    if (!initialLoadDone && !location.state?.preserveSelection) {
+      loadFlights();
+    }
+  }, [initialLoadDone, location.state?.preserveSelection]);
 
-    return () => {
-      mounted = false;
-    };
-  }, [searchCriteria.from, searchCriteria.to, searchCriteria.departDate, searchCriteria.returnDate, searchCriteria.passengers]);
+  // 恢复选择状态和航班列表
+  useEffect(() => {
+    if (location.state?.preserveSelection) {
+      const { 
+        selectedOutboundFlight, 
+        selectedReturnFlight,
+        outboundFlights: savedOutboundFlights,
+        returnFlights: savedReturnFlights
+      } = location.state;
+      
+      // 设置航班列表
+      if (savedOutboundFlights && savedOutboundFlights.length > 0) {
+        setOutboundFlights(savedOutboundFlights);
+      }
+      if (selectedOutboundFlight) {
+        setSelectedOutboundId(String(selectedOutboundFlight.id));
+        selectOutboundFlight(selectedOutboundFlight);
+      }
+      
+      if (savedReturnFlights && savedReturnFlights.length > 0) {
+        setReturnFlights(savedReturnFlights);
+      }
+      if (selectedReturnFlight) {
+        setSelectedReturnId(String(selectedReturnFlight.id));
+        selectReturnFlight(selectedReturnFlight);
+      }
+      
+      setInitialLoadDone(true);
+      setLoading(false);
+    }
+  }, [location.state, selectOutboundFlight, selectReturnFlight]);
+
+  // 处理航班选择
+  const handleOutboundSelect = (flight) => {
+    setSelectedOutboundId(flight.id);
+    selectOutboundFlight(flight);
+  };
+
+  const handleReturnSelect = (flight) => {
+    setSelectedReturnId(flight.id);
+    selectReturnFlight(flight);
+  };
 
   // Sort flights
   const sortFlights = (flights) => {
@@ -156,28 +194,46 @@ const SearchResultPage = () => {
     });
   };
 
+  // 处理Review按钮点击
+  const handleReviewClick = () => {
+    // 只要选择了任意一个航班就可以继续
+    if (!selectedOutboundId && !selectedReturnId) {
+      toast.error('Please select at least one flight');
+      return;
+    }
+
+    // 保持当前的URL参数
+    const currentSearch = window.location.search;
+    
+    // 获取已排序的航班列表
+    const sortedOutboundFlights = sortFlights(outboundFlights);
+    const sortedReturnFlights = sortFlights(returnFlights);
+    
+    // 导航到Review页面时，传递完整的航班信息
+    navigate({
+      pathname: '/booking/review',
+      search: currentSearch
+    }, {
+      state: {
+        outboundFlights: sortedOutboundFlights,
+        returnFlights: sortedReturnFlights,
+        selectedOutboundFlight: selectedOutboundId ? outboundFlights.find(f => f.id === selectedOutboundId) : null,
+        selectedReturnFlight: selectedReturnId ? returnFlights.find(f => f.id === selectedReturnId) : null,
+        searchCriteria: {
+          from: searchParams.get('from'),
+          to: searchParams.get('to'),
+          departDate: searchParams.get('departDate'),
+          returnDate: searchParams.get('returnDate'),
+          passengers: searchParams.get('passengers')
+        }
+      }
+    });
+  };
+
   const sortedOutboundFlights = sortFlights(outboundFlights);
   const sortedReturnFlights = sortFlights(returnFlights);
 
-  const handleOutboundSelect = (flight) => {
-    setSelectedOutboundId(flight.id);
-    selectOutboundFlight(flight);
-  };
-
-  const handleReturnSelect = (flight) => {
-    setSelectedReturnId(flight.id);
-    selectReturnFlight(flight);
-  };
-
-  const handleReviewClick = () => {
-    if (!selectedOutboundId || (searchCriteria.returnDate && !selectedReturnId)) {
-      toast.error('Please select both outbound and return flights');
-      return;
-    }
-    navigate('/booking/review');
-  };
-
-  if (loading) {
+  if (loading && !location.state?.preserveSelection) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <LoadingSpinner size="lg" />
@@ -190,7 +246,7 @@ const SearchResultPage = () => {
       <div className="container mx-auto px-4">
         {/* 搜索表单 */}
         <div className="mb-8">
-          <FlightSearchForm className="shadow-lg" />
+          <FlightSearchForm className="shadow-lg" onSearch={loadFlights} />
         </div>
 
         {error && (
@@ -211,125 +267,117 @@ const SearchResultPage = () => {
           </div>
         )}
 
-        {!error && outboundFlights.length === 0 && !loading && (
-          <div className="text-center py-12 bg-white rounded-lg shadow-md">
-            <p className="text-gray-500 text-lg">
-              No flights found matching your criteria. Try adjusting your search parameters.
-            </p>
+        {/* Search Results */}
+        <div className="space-y-8">
+          {/* Outbound Flights */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Outbound Flight
+              </h2>
+              <p className="text-gray-600">
+                {searchCriteria.from} to {searchCriteria.to} on{' '}
+                {formatDate(searchCriteria.departDate)}
+              </p>
+            </div>
+
+            {/* Sort Options */}
+            <div className="mb-6 flex items-center space-x-4">
+              <span className="text-gray-700">Sort by:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              >
+                <option value="price">Price</option>
+                <option value="duration">Duration</option>
+                <option value="departure">Departure Time</option>
+              </select>
+            </div>
+
+            {/* Outbound Flights List */}
+            <div className="space-y-4">
+              {sortedOutboundFlights.length > 0 ? (
+                <RadioGroup value={selectedOutboundId} onChange={setSelectedOutboundId}>
+                  <RadioGroup.Label className="sr-only">Select outbound flight</RadioGroup.Label>
+                  <div className="space-y-4">
+                    {sortedOutboundFlights.map((flight) => (
+                      <RadioGroup.Option key={String(flight.id)} value={String(flight.id)} className="w-full">
+                        {({ checked }) => (
+                          <FlightCard
+                            flight={{ ...flight, id: String(flight.id) }}
+                            selected={checked}
+                            onSelect={() => handleOutboundSelect(flight)}
+                          />
+                        )}
+                      </RadioGroup.Option>
+                    ))}
+                  </div>
+                </RadioGroup>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No outbound flights found.</p>
+                </div>
+              )}
+            </div>
           </div>
-        )}
 
-          {/* Search Results */}
-          <div className="space-y-8">
-            {/* Outbound Flights */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Outbound Flight
-                </h2>
+          {/* Return Flights */}
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                Return Flight
+              </h2>
+              {searchCriteria.returnDate && (
                 <p className="text-gray-600">
-                  {searchCriteria.from} to {searchCriteria.to} on{' '}
-                  {formatDate(searchCriteria.departDate)}
+                  {searchCriteria.to} to {searchCriteria.from} on{' '}
+                  {formatDate(searchCriteria.returnDate)}
                 </p>
-              </div>
+              )}
+            </div>
 
-              {/* Sort Options */}
-              <div className="mb-6 flex items-center space-x-4">
-                <span className="text-gray-700">Sort by:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
-                  className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                >
-                  <option value="price">Price</option>
-                  <option value="duration">Duration</option>
-                  <option value="departure">Departure Time</option>
-                </select>
-              </div>
-
-              {/* Outbound Flights List */}
+            {searchCriteria.returnDate ? (
               <div className="space-y-4">
-                {sortedOutboundFlights.length > 0 ? (
-                  <RadioGroup value={selectedOutboundId} onChange={setSelectedOutboundId}>
-                    <RadioGroup.Label className="sr-only">Select outbound flight</RadioGroup.Label>
+                {sortedReturnFlights.length > 0 ? (
+                  <RadioGroup value={selectedReturnId} onChange={setSelectedReturnId}>
+                    <RadioGroup.Label className="sr-only">Select return flight</RadioGroup.Label>
                     <div className="space-y-4">
-                      {sortedOutboundFlights.map((flight) => (
-                        <RadioGroup.Option key={flight.id} value={flight.id} className="w-full">
-                          {({ checked }) => (
-                            <FlightCard
-                              flight={flight}
-                              selected={checked}
-                              onSelect={() => handleOutboundSelect(flight)}
-                            />
-                          )}
-                        </RadioGroup.Option>
-                      ))}
+                    {sortedReturnFlights.map((flight) => (
+                      <RadioGroup.Option key={String(flight.id)} value={String(flight.id)} className="w-full">
+                        {({ checked }) => (
+                          <FlightCard
+                            flight={{ ...flight, id: String(flight.id) }}
+                            selected={checked}
+                            onSelect={() => handleReturnSelect(flight)}
+                          />
+                        )}
+                      </RadioGroup.Option>
+                    ))}
                     </div>
                   </RadioGroup>
                 ) : (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">No outbound flights found.</p>
+                    <p className="text-gray-500">No return flights found.</p>
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Return Flights */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">
-                  Return Flight
-                </h2>
-                {searchCriteria.returnDate && (
-                  <p className="text-gray-600">
-                    {searchCriteria.to} to {searchCriteria.from} on{' '}
-                    {formatDate(searchCriteria.returnDate)}
-                  </p>
-                )}
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No return flight selected.</p>
               </div>
+            )}
+          </div>
 
-              {searchCriteria.returnDate ? (
-                <div className="space-y-4">
-                  {sortedReturnFlights.length > 0 ? (
-                    <RadioGroup value={selectedReturnId} onChange={setSelectedReturnId}>
-                      <RadioGroup.Label className="sr-only">Select return flight</RadioGroup.Label>
-                      <div className="space-y-4">
-                        {sortedReturnFlights.map((flight) => (
-                          <RadioGroup.Option key={flight.id} value={flight.id} className="w-full">
-                            {({ checked }) => (
-                              <FlightCard
-                                flight={flight}
-                                selected={checked}
-                                onSelect={() => handleReturnSelect(flight)}
-                              />
-                            )}
-                          </RadioGroup.Option>
-                        ))}
-                      </div>
-                    </RadioGroup>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-gray-500">No return flights found.</p>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-gray-500">No return flight selected.</p>
-                </div>
-              )}
-            </div>
-
-            {/* Review Button */}
-            <div className="flex justify-end">
-              <button
-                onClick={handleReviewClick}
-                disabled={!selectedOutboundId || (searchCriteria.returnDate && !selectedReturnId)}
-                className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                Review Booking
-              </button>
-            </div>
+          {/* Review Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={handleReviewClick}
+              disabled={!selectedOutboundId && !selectedReturnId}
+              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+            >
+              Review Booking
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useBooking } from '../context/BookingContext';
 import { useAuth } from '../context/AuthContext';
 import FlightCard from '../components/FlightCard';
@@ -9,6 +9,8 @@ import { formatPrice } from '../utils/formatPrice';
 
 const BookingReviewPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { selectedOutboundFlight, selectedReturnFlight, createNewBooking, calculateTotalPrice } = useBooking();
   const { user, isAuthenticated } = useAuth();
   
@@ -23,14 +25,25 @@ const BookingReviewPage = () => {
     }
   ]);
 
-  if (!selectedOutboundFlight) {
-    navigate('/');
+  React.useEffect(() => {
+    // 如果既没有选择出发航班也没有选择返程航班，才返回首页
+    if (!selectedOutboundFlight && !selectedReturnFlight) {
+      navigate('/');
+    }
+  }, [selectedOutboundFlight, selectedReturnFlight, navigate]);
+
+  // 如果既没有选择出发航班也没有选择返程航班，不渲染页面
+  if (!selectedOutboundFlight && !selectedReturnFlight) {
     return null;
   }
 
-  const totalPrice = calculateTotalPrice(selectedOutboundFlight, selectedReturnFlight, passengerInfo.length);
-  const taxes = totalPrice * 0.1; // 10% tax
+  // 计算出发和返程航班价格分别累加
+  const outboundPrice = selectedOutboundFlight ? selectedOutboundFlight.price * passengerInfo.length : 0;
+  const returnPrice = selectedReturnFlight ? selectedReturnFlight.price * passengerInfo.length : 0;
+  const basePrice = outboundPrice + returnPrice;
+  const taxes = basePrice * 0.1; // 10% tax
   const fees = 25 * passengerInfo.length; // $25 per passenger service fee
+  const totalPrice = basePrice + taxes + fees;
 
   const handlePassengerInfoChange = (index, field, value) => {
     const newPassengerInfo = [...passengerInfo];
@@ -55,6 +68,31 @@ const BookingReviewPage = () => {
     }
   };
 
+  const handleCancel = () => {
+    const { outboundFlights = [], returnFlights = [] } = location.state || {};
+    const currentSearch = window.location.search;
+
+    navigate({
+      pathname: '/search',
+      search: currentSearch
+    }, { 
+      state: { 
+        preserveSelection: true,
+        selectedOutboundFlight,
+        selectedReturnFlight,
+        outboundFlights: outboundFlights.length > 0 ? outboundFlights : [selectedOutboundFlight],
+        returnFlights: returnFlights.length > 0 ? returnFlights : (selectedReturnFlight ? [selectedReturnFlight] : []),
+        searchCriteria: {
+          from: searchParams.get('from'),
+          to: searchParams.get('to'),
+          departDate: searchParams.get('departDate'),
+          returnDate: searchParams.get('returnDate'),
+          passengers: searchParams.get('passengers')
+        }
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -65,30 +103,50 @@ const BookingReviewPage = () => {
       return;
     }
 
-    // Store booking data in localStorage for payment page
-      const bookingData = {
-        flightId: selectedOutboundFlight.id,
-        returnFlightId: selectedReturnFlight?.id,
-        passengers: passengerInfo.map(p => ({
-          firstName: p.firstName,
-          lastName: p.lastName,
-          email: p.email,
-          phone: p.phone || null
-        })),
-        numberOfPassengers: passengerInfo.length,
-        totalPrice: totalPrice,
-        outboundFlight: {
-          ...selectedOutboundFlight,
-          type: 'OUTBOUND'
-        },
-        returnFlight: selectedReturnFlight ? {
-          ...selectedReturnFlight,
-          type: 'RETURN'
-        } : null
-      };
+    // 处理航班信息
+    let flightId, returnFlightId, flightType, mainFlightType;
+
+    if (selectedOutboundFlight && selectedReturnFlight) {
+      // 往返航班
+      flightId = selectedOutboundFlight.id;
+      returnFlightId = selectedReturnFlight.id;
+      flightType = 'ROUND_TRIP';
+      mainFlightType = 'OUTBOUND';
+    } else if (selectedOutboundFlight) {
+      // 只选择出发航班
+      flightId = selectedOutboundFlight.id;
+      returnFlightId = null;
+      flightType = 'ONE_WAY';
+      mainFlightType = 'OUTBOUND';
+    } else {
+      // 只选择返程航班
+      flightId = selectedReturnFlight.id;
+      returnFlightId = null;
+      flightType = 'ONE_WAY';
+      mainFlightType = 'RETURN';
+    }
+
+    const bookingData = {
+      flightId,
+      returnFlightId,
+      passengers: passengerInfo.map(p => ({
+        firstName: p.firstName,
+        lastName: p.lastName,
+        email: p.email,
+        phone: p.phone || null
+      })),
+      numberOfPassengers: passengerInfo.length,
+      totalPrice: totalPrice,
+      flightType,
+      mainFlightType
+    };
+
+    // 调试信息
+    console.log('Booking data:', bookingData);
+    console.log('Selected outbound flight:', selectedOutboundFlight);
+    console.log('Selected return flight:', selectedReturnFlight);
     localStorage.setItem('pendingBooking', JSON.stringify(bookingData));
 
-    // Navigate to payment page
     navigate('/payment');
   };
 
@@ -104,21 +162,22 @@ const BookingReviewPage = () => {
           />
         )}
 
-        {/* Flight Details */}
         <div className="mb-8 space-y-6">
-          <div className="bg-white rounded-lg shadow-md p-6 w-full">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">
-              <span className="text-blue-600 mr-2">✈</span>
-              Outbound Flight
-            </h2>
-            <div className="max-w-3xl mx-auto">
-              <FlightCard
-                flight={selectedOutboundFlight}
-                onSelect={() => {}}
-                selected={true}
-              />
+          {selectedOutboundFlight && (
+            <div className="bg-white rounded-lg shadow-md p-6 w-full">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                <span className="text-blue-600 mr-2">✈</span>
+                Outbound Flight
+              </h2>
+              <div className="max-w-3xl mx-auto">
+                <FlightCard
+                  flight={selectedOutboundFlight}
+                  onSelect={() => {}}
+                  selected={true}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {selectedReturnFlight && (
             <div className="bg-white rounded-lg shadow-md p-6 w-full">
@@ -137,7 +196,6 @@ const BookingReviewPage = () => {
           )}
         </div>
 
-        {/* Passenger Information Form */}
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
@@ -226,46 +284,47 @@ const BookingReviewPage = () => {
             </button>
           </div>
 
-          {/* Price Summary */}
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
               <span className="text-blue-600 mr-2">💰</span>
               Price Summary
             </h2>
             <div className="space-y-4">
-              {/* Outbound Flight */}
               <div>
-                <h3 className="font-medium text-gray-700 mb-2">Outbound Flight</h3>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span>Base Price ({passengerInfo.length} passengers)</span>
-                    <span>{formatPrice(selectedOutboundFlight.price * passengerInfo.length)}</span>
+                {/* 价格明细 */}
+                {selectedOutboundFlight && (
+                  <div className="mb-4">
+                    <h3 className="font-medium text-gray-700 mb-2">Outbound Flight</h3>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Base Price ({passengerInfo.length} passengers)</span>
+                        <span>{formatPrice((selectedOutboundFlight.price || 0) * passengerInfo.length)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Taxes (10%)</span>
+                        <span>{formatPrice((selectedOutboundFlight.price || 0) * passengerInfo.length * 0.1)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Taxes (10%)</span>
-                    <span>{formatPrice(selectedOutboundFlight.price * passengerInfo.length * 0.1)}</span>
+                )}
+
+                {selectedReturnFlight && (
+                  <div className="mb-4">
+                    <h3 className="font-medium text-gray-700 mb-2">Return Flight</h3>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Base Price ({passengerInfo.length} passengers)</span>
+                        <span>{formatPrice((selectedReturnFlight.price || 0) * passengerInfo.length)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Taxes (10%)</span>
+                        <span>{formatPrice((selectedReturnFlight.price || 0) * passengerInfo.length * 0.1)}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
-              {/* Return Flight */}
-              {selectedReturnFlight && (
-                <div>
-                  <h3 className="font-medium text-gray-700 mb-2">Return Flight</h3>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span>Base Price ({passengerInfo.length} passengers)</span>
-                      <span>{formatPrice(selectedReturnFlight.price * passengerInfo.length)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Taxes (10%)</span>
-                      <span>{formatPrice(selectedReturnFlight.price * passengerInfo.length * 0.1)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Service Fees */}
               <div>
                 <div className="flex justify-between text-sm">
                   <span>Service Fees ({passengerInfo.length} × $25)</span>
@@ -273,7 +332,6 @@ const BookingReviewPage = () => {
                 </div>
               </div>
 
-              {/* Total */}
               <div className="border-t pt-3 mt-2">
                 <div className="flex justify-between font-bold text-lg">
                   <span>Total</span>
@@ -283,22 +341,21 @@ const BookingReviewPage = () => {
             </div>
           </div>
 
-          {/* Submit Button */}
           <div className="flex justify-end space-x-4">
             <button
               type="button"
-              onClick={() => navigate('/')}
+              onClick={handleCancel}
               className="px-6 py-3 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
             >
               Cancel
             </button>
-              <button
-                type="submit"
-                className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
-              >
-                <span>Continue to Payment</span>
-                <span className="ml-2">→</span>
-              </button>
+            <button
+              type="submit"
+              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
+            >
+              <span>Continue to Payment</span>
+              <span className="ml-2">→</span>
+            </button>
           </div>
         </form>
       </div>

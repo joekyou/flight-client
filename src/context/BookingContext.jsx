@@ -40,7 +40,17 @@ export const BookingProvider = ({ children }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await createBooking(bookingData);
+      // 过滤掉不需要的字段，确保包含flightType和mainFlightType
+      const payload = {
+        flightId: bookingData.flightId,
+        returnFlightId: bookingData.returnFlightId,
+        passengers: bookingData.passengers,
+        numberOfPassengers: bookingData.numberOfPassengers,
+        totalPrice: bookingData.totalPrice,
+        flightType: bookingData.flightType,
+        mainFlightType: bookingData.mainFlightType,
+      };
+      const response = await createBooking(payload);
       // 确保新预订被正确添加到状态中
       const newBooking = response.data;
       setBookings(prev => {
