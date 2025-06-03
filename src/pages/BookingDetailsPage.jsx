@@ -15,7 +15,7 @@ const FlightDetails = ({ flight, isReturnFlight = false }) => (
       <div>
         <p className="text-sm text-gray-500">Departure</p>
         <p className="text-base font-medium">{formatDateTime(flight.departureTime)}</p>
-        <p className="text-sm text-gray-600">{flight.departure}</p>
+        <p className="text-sm text-gray-600">{flight.departureAirport?.name || flight.departure}</p>
       </div>
       <div className="flex-1 mx-4 border-t border-gray-300 border-dashed relative">
         <div className="absolute inset-y-0 left-0 flex items-center justify-center w-3 h-3 -mt-1.5 rounded-full bg-blue-500" />
@@ -24,7 +24,7 @@ const FlightDetails = ({ flight, isReturnFlight = false }) => (
       <div className="text-right">
         <p className="text-sm text-gray-500">Arrival</p>
         <p className="text-base font-medium">{formatDateTime(flight.arrivalTime)}</p>
-        <p className="text-sm text-gray-600">{flight.destination}</p>
+        <p className="text-sm text-gray-600">{flight.arrivalAirport?.name || flight.destination}</p>
       </div>
     </div>
   </div>

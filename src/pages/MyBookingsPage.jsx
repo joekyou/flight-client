@@ -200,7 +200,7 @@ const MyBookingsPage = () => {
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-sm text-gray-500">From</p>
-                      <p className="text-base font-medium">{booking.flight.departureAirport}</p>
+                      <p className="text-base font-medium">{booking.flight.departureAirport?.name || booking.flight.departureAirport}</p>
                       <p className="text-base font-medium">{formatDateTime(booking.flight.departureTime)}</p>
                     </div>
                     <div className="flex-1 mx-4 border-t border-gray-300 border-dashed relative">
@@ -209,7 +209,7 @@ const MyBookingsPage = () => {
                     </div>
                     <div className="text-right">
                       <p className="text-sm text-gray-500">To</p>
-                      <p className="text-base font-medium">{booking.flight.destinationAirport}</p>
+                      <p className="text-base font-medium">{booking.flight.arrivalAirport?.name || booking.flight.destinationAirport}</p>
                       <p className="text-base font-medium">{formatDateTime(booking.flight.arrivalTime)}</p>
                     </div>
                   </div>
@@ -222,7 +222,7 @@ const MyBookingsPage = () => {
                     <div className="flex items-center justify-between mb-4">
                       <div>
                         <p className="text-sm text-gray-500">From</p>
-                        <p className="text-base font-medium">{booking.returnFlight.departureAirport}</p>
+                        <p className="text-base font-medium">{booking.returnFlight.departureAirport?.name || booking.returnFlight.departureAirport}</p>
                         <p className="text-base font-medium">{formatDateTime(booking.returnFlight.departureTime)}</p>
                       </div>
                       <div className="flex-1 mx-4 border-t border-gray-300 border-dashed relative">
@@ -231,7 +231,7 @@ const MyBookingsPage = () => {
                       </div>
                       <div className="text-right">
                         <p className="text-sm text-gray-500">To</p>
-                        <p className="text-base font-medium">{booking.returnFlight.destinationAirport}</p>
+                        <p className="text-base font-medium">{booking.returnFlight.arrivalAirport?.name || booking.returnFlight.destinationAirport}</p>
                         <p className="text-base font-medium">{formatDateTime(booking.returnFlight.arrivalTime)}</p>
                       </div>
                     </div>
