@@ -6,6 +6,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 import { formatDateTime } from '../utils/formatDate';
 import { formatPrice } from '../utils/formatPrice';
+import { cancelBooking } from '../services/bookingApi';
+import { toast } from 'react-toastify';
 
 const BookingStatus = ({ status }) => {
   const getStatusColor = () => {
@@ -33,6 +35,9 @@ const MyBookingsPage = () => {
   const { isAuthenticated } = useAuth();
   const { bookings, loading, error, loadBookings, getUpcomingBookings, getPastBookings } = useBooking();
   const [activeTab, setActiveTab] = useState('upcoming');
+  const [cancellingBookingId, setCancellingBookingId] = useState(null);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -45,6 +50,42 @@ const MyBookingsPage = () => {
 
   const displayBookings = activeTab === 'upcoming' ? getUpcomingBookings() : getPastBookings();
 
+  const handleCancelBooking = (booking) => {
+    setBookingToCancel(booking);
+    setShowCancelDialog(true);
+  };
+
+  const confirmCancelBooking = async () => {
+    if (!bookingToCancel) return;
+    
+    setCancellingBookingId(bookingToCancel.id);
+    setShowCancelDialog(false);
+    
+    try {
+      await cancelBooking(bookingToCancel.id);
+      toast.success('Booking cancelled successfully');
+      
+      // Navigate to cancellation confirmation page
+      navigate('/booking-cancelled', {
+        state: { totalPrice: bookingToCancel.totalPrice }
+      });
+      
+      // Reload bookings to reflect the change
+      await loadBookings();
+    } catch (err) {
+      toast.error('Failed to cancel booking. Please try again.');
+      console.error('Cancel booking error:', err);
+    } finally {
+      setCancellingBookingId(null);
+      setBookingToCancel(null);
+    }
+  };
+
+  const cancelCancelBooking = () => {
+    setShowCancelDialog(false);
+    setBookingToCancel(null);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -55,8 +96,47 @@ const MyBookingsPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
+      {/* Cancel Confirmation Dialog */}
+      {showCancelDialog && bookingToCancel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Cancel Booking</h3>
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to cancel this booking?
+            </p>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600">Booking Reference: {bookingToCancel.bookingReference}</p>
+              <p className="text-sm text-gray-600">Refund Amount: {formatPrice(bookingToCancel.totalPrice)}</p>
+            </div>
+            <p className="text-sm text-red-600 mb-6">This action cannot be undone.</p>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={cancelCancelBooking}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmCancelBooking}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md"
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-4 max-w-4xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">My Bookings</h1>
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">My Bookings</h1>
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+          >
+            Back
+          </button>
+        </div>
 
         {error && (
           <ErrorMessage
@@ -159,17 +239,32 @@ const MyBookingsPage = () => {
                 )}
 
                 <div className="px-6 py-4 border-t border-gray-200">
-                  <div className="flex justify-between items-center text-sm text-gray-600">
-                    <div>
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm text-gray-600">
                       <p>Passengers: {booking.numberOfPassengers}</p>
                       <p className="font-medium text-gray-900">{formatPrice(booking.totalPrice)}</p>
                     </div>
-                    <button
-                      onClick={() => navigate(`/bookings/${booking.id}`)}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      View Details →
-                    </button>
+                    <div className="flex items-center space-x-4">
+                      {activeTab === 'upcoming' && booking.status.toLowerCase() === 'confirmed' && (
+                        <button
+                          onClick={() => handleCancelBooking(booking)}
+                          disabled={cancellingBookingId === booking.id}
+                          className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50"
+                        >
+                          {cancellingBookingId === booking.id ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            'Cancel Booking'
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => navigate(`/bookings/${booking.id}`)}
+                        className="text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        View Details →
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

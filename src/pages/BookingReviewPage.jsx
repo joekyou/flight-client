@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useBooking } from '../context/BookingContext';
 import { useAuth } from '../context/AuthContext';
+import { getUserPassengers } from '../services/passengerApi';
 import FlightCard from '../components/FlightCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
@@ -16,14 +17,35 @@ const BookingReviewPage = () => {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [passengerInfo, setPassengerInfo] = useState([
-    {
-      firstName: user?.firstName || '',
-      lastName: user?.lastName || '',
-      email: user?.email || '',
-      phone: user?.phone || ''
-    }
-  ]);
+  const [savedPassengers, setSavedPassengers] = useState([]);
+  const [selectedPassengerIds, setSelectedPassengerIds] = useState([]);
+
+  // 加载保存的乘客信息
+  useEffect(() => {
+    const loadSavedPassengers = async () => {
+      if (isAuthenticated) {
+        try {
+          const response = await getUserPassengers();
+          console.log('Loaded passengers:', response); // 添加调试日志
+          const passengers = response.data || [];
+          if (Array.isArray(passengers)) {
+            setSavedPassengers(passengers);
+            // 默认选中第一个乘客
+            if (passengers.length > 0) {
+              setSelectedPassengerIds([passengers[0].id]);
+            }
+          } else {
+            console.error('Invalid response format:', response);
+            setError('Invalid passenger data format');
+          }
+        } catch (error) {
+          console.error('Failed to load saved passengers:', error);
+          setError('Failed to load saved passengers');
+        }
+      }
+    };
+    loadSavedPassengers();
+  }, [isAuthenticated]);
 
   React.useEffect(() => {
     // 如果既没有选择出发航班也没有选择返程航班，才返回首页
@@ -37,35 +59,23 @@ const BookingReviewPage = () => {
     return null;
   }
 
-  // 计算出发和返程航班价格分别累加
-  const outboundPrice = selectedOutboundFlight ? selectedOutboundFlight.price * passengerInfo.length : 0;
-  const returnPrice = selectedReturnFlight ? selectedReturnFlight.price * passengerInfo.length : 0;
+  // 计算价格
+  const passengerCount = selectedPassengerIds.length;
+  const outboundPrice = selectedOutboundFlight ? selectedOutboundFlight.price * passengerCount : 0;
+  const returnPrice = selectedReturnFlight ? selectedReturnFlight.price * passengerCount : 0;
   const basePrice = outboundPrice + returnPrice;
   const taxes = basePrice * 0.1; // 10% tax
-  const fees = 25 * passengerInfo.length; // $25 per passenger service fee
+  const fees = 25 * passengerCount; // $25 per passenger service fee
   const totalPrice = basePrice + taxes + fees;
 
-  const handlePassengerInfoChange = (index, field, value) => {
-    const newPassengerInfo = [...passengerInfo];
-    newPassengerInfo[index] = {
-      ...newPassengerInfo[index],
-      [field]: value
-    };
-    setPassengerInfo(newPassengerInfo);
-  };
-
-  const addPassenger = () => {
-    setPassengerInfo([
-      ...passengerInfo,
-      { firstName: '', lastName: '', email: '', phone: '' }
-    ]);
-  };
-
-  const removePassenger = (index) => {
-    if (passengerInfo.length > 1) {
-      const newPassengerInfo = passengerInfo.filter((_, i) => i !== index);
-      setPassengerInfo(newPassengerInfo);
-    }
+  const handlePassengerSelect = (passengerId) => {
+    setSelectedPassengerIds(prev => {
+      if (prev.includes(passengerId)) {
+        return prev.filter(id => id !== passengerId);
+      } else {
+        return [...prev, passengerId];
+      }
+    });
   };
 
   const handleCancel = () => {
@@ -126,16 +136,17 @@ const BookingReviewPage = () => {
       mainFlightType = 'RETURN';
     }
 
+    // 如果没有选择乘客，不允许继续
+    if (selectedPassengerIds.length === 0) {
+      setError('Please select at least one passenger');
+      return;
+    }
+
     const bookingData = {
       flightId,
       returnFlightId,
-      passengers: passengerInfo.map(p => ({
-        firstName: p.firstName,
-        lastName: p.lastName,
-        email: p.email,
-        phone: p.phone || null
-      })),
-      numberOfPassengers: passengerInfo.length,
+      passengerIds: selectedPassengerIds,
+      numberOfPassengers: selectedPassengerIds.length,
       totalPrice: totalPrice,
       flightType,
       mainFlightType
@@ -200,88 +211,74 @@ const BookingReviewPage = () => {
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
               <span className="text-blue-600 mr-2">👤</span>
-              Passenger Information
+              Select Passengers
             </h2>
 
-            {passengerInfo.map((passenger, index) => (
-              <div key={index} className="mb-6 p-4 border rounded-lg">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-medium">
-                    Passenger {index + 1}
-                  </h3>
-                  {index > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => removePassenger(index)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
+            <div className="mb-4 text-sm text-gray-600 bg-blue-50 p-4 rounded-lg">
+              To add new passengers, please visit the{' '}
+              <button
+                type="button"
+                onClick={() => navigate('/passengers')}
+                className="text-blue-600 hover:text-blue-800 underline"
+              >
+                Passenger Management
+              </button>{' '}
+              page.
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      First Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={passenger.firstName}
-                      onChange={(e) => handlePassengerInfoChange(index, 'firstName', e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Last Name
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={passenger.lastName}
-                      onChange={(e) => handlePassengerInfoChange(index, 'lastName', e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      value={passenger.email}
-                      onChange={(e) => handlePassengerInfoChange(index, 'email', e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                      Phone
-                    </label>
-                    <input
-                      type="tel"
-                      value={passenger.phone}
-                      onChange={(e) => handlePassengerInfoChange(index, 'phone', e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                    />
-                  </div>
-                </div>
+            {savedPassengers.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-gray-500">No saved passengers found.</p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/passengers')}
+                  className="mt-2 text-blue-600 hover:text-blue-800"
+                >
+                  Add Passengers
+                </button>
               </div>
-            ))}
+            ) : (
+              <div className="space-y-4">
+                {savedPassengers.map((passenger) => (
+                  <div
+                    key={passenger.id}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedPassengerIds.includes(passenger.id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-300'
+                    }`}
+                    onClick={() => handlePassengerSelect(passenger.id)}
+                  >
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedPassengerIds.includes(passenger.id)}
+                        onChange={() => handlePassengerSelect(passenger.id)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <div className="ml-3">
+                        <p className="font-medium">
+                          {passenger.firstName} {passenger.lastName}
+                          {passenger.isDefault && (
+                            <span className="ml-2 text-sm text-blue-600">(Default)</span>
+                          )}
+                        </p>
+                        <p className="text-sm text-gray-500">{passenger.email}</p>
+                        {passenger.phone && (
+                          <p className="text-sm text-gray-500">{passenger.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
 
-            <button
-              type="button"
-              onClick={addPassenger}
-              className="mt-4 text-blue-600 hover:text-blue-800"
-            >
-              + Add Another Passenger
-            </button>
+            {selectedPassengerIds.length === 0 && (
+              <p className="text-red-500 mt-4">
+                Please select at least one passenger to continue.
+              </p>
+            )}
           </div>
 
           <div className="bg-white shadow-md rounded-lg p-6 border border-gray-200">
@@ -297,12 +294,12 @@ const BookingReviewPage = () => {
                     <h3 className="font-medium text-gray-700 mb-2">Outbound Flight</h3>
                     <div className="space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span>Base Price ({passengerInfo.length} passengers)</span>
-                        <span>{formatPrice((selectedOutboundFlight.price || 0) * passengerInfo.length)}</span>
+                        <span>Base Price ({selectedPassengerIds.length} passengers)</span>
+                        <span>{formatPrice((selectedOutboundFlight.price || 0) * selectedPassengerIds.length)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Taxes (10%)</span>
-                        <span>{formatPrice((selectedOutboundFlight.price || 0) * passengerInfo.length * 0.1)}</span>
+                        <span>{formatPrice((selectedOutboundFlight.price || 0) * selectedPassengerIds.length * 0.1)}</span>
                       </div>
                     </div>
                   </div>
@@ -313,12 +310,12 @@ const BookingReviewPage = () => {
                     <h3 className="font-medium text-gray-700 mb-2">Return Flight</h3>
                     <div className="space-y-1">
                       <div className="flex justify-between text-sm">
-                        <span>Base Price ({passengerInfo.length} passengers)</span>
-                        <span>{formatPrice((selectedReturnFlight.price || 0) * passengerInfo.length)}</span>
+                        <span>Base Price ({selectedPassengerIds.length} passengers)</span>
+                        <span>{formatPrice((selectedReturnFlight.price || 0) * selectedPassengerIds.length)}</span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span>Taxes (10%)</span>
-                        <span>{formatPrice((selectedReturnFlight.price || 0) * passengerInfo.length * 0.1)}</span>
+                        <span>{formatPrice((selectedReturnFlight.price || 0) * selectedPassengerIds.length * 0.1)}</span>
                       </div>
                     </div>
                   </div>
@@ -327,8 +324,8 @@ const BookingReviewPage = () => {
 
               <div>
                 <div className="flex justify-between text-sm">
-                  <span>Service Fees ({passengerInfo.length} × $25)</span>
-                  <span>{formatPrice(fees)}</span>
+                        <span>Service Fees ({selectedPassengerIds.length} × $25)</span>
+                        <span>{formatPrice(fees)}</span>
                 </div>
               </div>
 
@@ -351,7 +348,12 @@ const BookingReviewPage = () => {
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
+              disabled={selectedPassengerIds.length === 0}
+              className={`px-6 py-3 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center ${
+                selectedPassengerIds.length === 0 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700'
+              } text-white`}
             >
               <span>Continue to Payment</span>
               <span className="ml-2">→</span>

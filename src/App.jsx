@@ -10,8 +10,12 @@ import BookingReviewPage from './pages/BookingReviewPage';
 import MyBookingsPage from './pages/MyBookingsPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import RegisterSuccessPage from './pages/RegisterSuccessPage';
+import UserProfilePage from './pages/UserProfilePage';
+import PassengerManagementPage from './pages/PassengerManagementPage';
 import BookingDetailsPage from './pages/BookingDetailsPage';
 import PaymentCompletePage from './pages/PaymentCompletePage';
+import CancellationConfirmationPage from './pages/CancellationConfirmationPage';
 
 // Components
 import Navbar from './components/Navbar';
@@ -75,6 +79,31 @@ const AppLayout = () => {
           />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/register-success" element={<RegisterSuccessPage />} />
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <UserProfilePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/passengers"
+            element={
+              <ProtectedRoute>
+                <PassengerManagementPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/booking-cancelled"
+            element={
+              <ProtectedRoute>
+                <CancellationConfirmationPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/payment"
             element={

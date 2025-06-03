@@ -3,21 +3,39 @@ import { toast } from 'react-toastify';
 
 // 创建 axios 实例
 const http = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:8080') + '/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
+// 调试日志
+console.log('API Base URL:', http.defaults.baseURL);
+
 // 请求拦截器
 http.interceptors.request.use(
   (config) => {
-    // 从 localStorage 获取 token
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // 检查当前请求是否是公开路径
+    console.log('Request URL:', config.url);
+    
+    // 扩展路径匹配逻辑，检查是否包含公开路径
+    const publicPaths = ['/auth/', '/airports', '/flights'];
+    const isPublicPath = publicPaths.some(path => config.url.startsWith(path) || config.url.includes(path));
+    
+    console.log('Is public path:', isPublicPath);
+    
+    // 在config中标记是否为公开路径，供响应拦截器使用
+    config.isPublicPath = isPublicPath;
+    
+    // 只有非公开路径才添加 Authorization 头
+    if (!isPublicPath) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
+    
     return config;
   },
   (error) => {
@@ -47,17 +65,19 @@ http.interceptors.response.use(
 
     // 处理错误响应
     if (error.response) {
-      const { status, data } = error.response;
+      const { status, data, config } = error.response;
 
       switch (status) {
         case 400:
           toast.error(data.message || 'Invalid request');
           break;
         case 401:
-          // 未授权，清除本地存储的 token
-          localStorage.removeItem('token');
-          toast.error('Please log in to continue');
-          // 可以在这里添加重定向到登录页的逻辑
+          // 只有非公开路径才清除本地存储的 token 并提示登录
+          if (!config.isPublicPath) {
+            localStorage.removeItem('token');
+            toast.error('Please log in to continue');
+            // 可以在这里添加重定向到登录页的逻辑
+          }
           break;
         case 403:
           toast.error('Access denied');

@@ -73,23 +73,64 @@ export const login = async ({ email, password }) => {
  */
 export const register = async (userData) => {
   try {
+    console.log('Starting registration process...');
+    console.log('Registration data:', {
+      ...userData,
+      password: '[REDACTED]'
+    });
+
     const response = await http.post('/auth/register', {
       email: userData.email,
       password: userData.password,
       firstName: userData.firstName,
       lastName: userData.lastName,
-      country: userData.country || '',
+      country: userData.country,
       phone: userData.phone || ''
     });
     
+    console.log('Registration response:', {
+      status: response.status,
+      hasData: !!response.data,
+      dataStructure: response.data ? Object.keys(response.data) : []
+    });
+
     if (!response.data) {
-      throw new Error('Registration failed: No response data');
+      throw new Error('注册失败：服务器未返回数据');
     }
-    
-    return response;
+
+    // 处理不同的响应格式
+    let processedResponse = {};
+    if (response.data.data) {
+      // 如果数据在data字段中
+      processedResponse = {
+        user: response.data.data.user || response.data.data,
+        token: response.data.data.token
+      };
+    } else {
+      // 如果数据在顶层
+      processedResponse = {
+        user: response.data.user || response.data,
+        token: response.data.token
+      };
+    }
+
+    console.log('Processed registration response:', {
+      hasUser: !!processedResponse.user,
+      hasToken: !!processedResponse.token
+    });
+
+    return processedResponse;
   } catch (error) {
+    console.error('Registration error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
+
     if (error.response?.data?.message) {
       throw new Error(error.response.data.message);
+    } else if (error.message.includes('Network Error')) {
+      throw new Error('网络错误，请检查网络连接');
     }
     throw error;
   }

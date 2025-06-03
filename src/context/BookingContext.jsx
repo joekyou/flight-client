@@ -44,7 +44,7 @@ export const BookingProvider = ({ children }) => {
       const payload = {
         flightId: bookingData.flightId,
         returnFlightId: bookingData.returnFlightId,
-        passengers: bookingData.passengers,
+        passengerIds: bookingData.passengerIds,
         numberOfPassengers: bookingData.numberOfPassengers,
         totalPrice: bookingData.totalPrice,
         flightType: bookingData.flightType,

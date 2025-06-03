@@ -20,12 +20,21 @@ const FlightCard = ({
     airline = { name: 'Unknown Airline', code: 'XX', logo: null },
     departureTime = new Date().toISOString(),
     arrivalTime = new Date().toISOString(),
-    departureAirport = { code: 'XXX', name: 'Unknown Airport' },
-    arrivalAirport = { code: 'XXX', name: 'Unknown Airport' },
+    departureAirport: rawDepartureAirport,
+    arrivalAirport: rawArrivalAirport,
     price = 0,
     duration = 0,
     stops = 0
   } = flight;
+
+  // 处理机场信息
+  const departureAirport = typeof rawDepartureAirport === 'string' 
+    ? { code: rawDepartureAirport, name: rawDepartureAirport }
+    : rawDepartureAirport || { code: 'N/A', name: '未知机场' };
+
+  const arrivalAirport = typeof rawArrivalAirport === 'string'
+    ? { code: rawArrivalAirport, name: rawArrivalAirport }
+    : rawArrivalAirport || { code: 'N/A', name: '未知机场' };
 
   console.log('Processing flight data:', {
     airline,
@@ -75,7 +84,7 @@ const FlightCard = ({
             <p className="text-lg font-semibold text-gray-900">
               {formatTime(departureTime)}
             </p>
-            <p className="text-sm text-gray-500">{departureAirport.code}</p>
+            <p className="text-sm text-gray-500">{departureAirport.name}</p>
           </div>
 
           <div className="flex flex-col items-center px-4">
@@ -99,7 +108,7 @@ const FlightCard = ({
             <p className="text-lg font-semibold text-gray-900">
               {formatTime(arrivalTime)}
             </p>
-            <p className="text-sm text-gray-500">{arrivalAirport.code}</p>
+            <p className="text-sm text-gray-500">{arrivalAirport.name}</p>
           </div>
         </div>
 
@@ -134,7 +143,7 @@ const FlightCard = ({
 
 FlightCard.propTypes = {
   flight: PropTypes.shape({
-    id: PropTypes.string.isRequired,
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
     airline: PropTypes.shape({
       name: PropTypes.string.isRequired,
       code: PropTypes.string.isRequired,

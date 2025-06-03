@@ -19,7 +19,7 @@ export const createBooking = async (bookingData) => {
     mainFlightType: bookingData.mainFlightType,        // OUTBOUND 或 RETURN
     numberOfPassengers: bookingData.numberOfPassengers,
     totalPrice: bookingData.totalPrice,
-    passengers: bookingData.passengers
+    passengerIds: bookingData.passengerIds            // 乘客ID列表
   };
   
   const response = await http.post('/bookings', payload);

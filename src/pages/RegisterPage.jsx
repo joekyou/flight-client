@@ -72,8 +72,8 @@ const RegisterPage = () => {
       const { confirmPassword, acceptTerms, ...registrationData } = formData;
       
       await register(registrationData);
-      toast.success('注册成功！请登录');
-      navigate('/login');
+      toast.success('注册成功！');
+      navigate('/register-success');
     } catch (err) {
       if (err.response?.data?.message) {
         setError(err.response.data.message);

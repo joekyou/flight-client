@@ -82,9 +82,10 @@ const BookingDetailsPage = () => {
   }
 
   const calculateSubtotal = () => {
-    let subtotal = booking.flight.price * booking.passengers.length;
+    const passengerCount = booking.bookingPassengers ? booking.bookingPassengers.length : 0;
+    let subtotal = booking.flight.price * passengerCount;
     if (booking.returnFlight) {
-      subtotal += booking.returnFlight.price * booking.passengers.length;
+      subtotal += booking.returnFlight.price * passengerCount;
     }
     return subtotal;
   };
@@ -138,17 +139,30 @@ const BookingDetailsPage = () => {
           <div className="px-6 py-4 border-b border-gray-200">
             <h4 className="text-lg font-medium text-gray-900 mb-4">Passenger Information</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {booking.passengers.map((passenger, index) => (
-                <div key={index} className="bg-gray-50 p-4 rounded-lg">
-                  <p className="font-medium text-gray-900">
-                    {passenger.firstName} {passenger.lastName}
-                  </p>
-                  <p className="text-sm text-gray-600">{passenger.email}</p>
-                  {passenger.phone && (
-                    <p className="text-sm text-gray-600">{passenger.phone}</p>
-                  )}
-                </div>
-              ))}
+              {booking.bookingPassengers && booking.bookingPassengers.map((bookingPassenger, index) => {
+                const passenger = bookingPassenger.passenger;
+                return (
+                  <div key={bookingPassenger.id} className="bg-gray-50 p-4 rounded-lg">
+                    <p className="font-medium text-gray-900">
+                      {passenger.firstName} {passenger.lastName}
+                    </p>
+                    <p className="text-sm text-gray-600">{passenger.email}</p>
+                    {passenger.phone && (
+                      <p className="text-sm text-gray-600">{passenger.phone}</p>
+                    )}
+                    {bookingPassenger.seatPreference && (
+                      <p className="text-sm text-gray-600 mt-2">
+                        Seat Preference: {bookingPassenger.seatPreference}
+                      </p>
+                    )}
+                    {bookingPassenger.specialRequirements && (
+                      <p className="text-sm text-gray-600">
+                        Special Requirements: {bookingPassenger.specialRequirements}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -157,7 +171,7 @@ const BookingDetailsPage = () => {
             <h4 className="text-lg font-medium text-gray-900 mb-4">Price Summary</h4>
             <div className="space-y-2">
               <div className="flex justify-between text-sm text-gray-600">
-                <span>Base Price ({booking.passengers.length} passengers)</span>
+                <span>Base Price ({booking.bookingPassengers ? booking.bookingPassengers.length : 0} passengers)</span>
                 <span>{formatPrice(calculateSubtotal())}</span>
               </div>
               <div className="flex justify-between text-sm text-gray-600">

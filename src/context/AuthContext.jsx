@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { login as apiLogin, register as apiRegister, logout as apiLogout, checkAuth } from '../services/authApi';
+import { getUserPassengers, updatePassengers, createPassenger } from '../services/passengerApi';
 import { toast } from 'react-toastify';
 import http from '../services/http';
 
@@ -99,17 +100,61 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const response = await apiRegister(userData);
+      
+      // 检查响应格式
+      let userInfo, tokenValue;
+      
       if (response.data) {
-        const { token } = response.data;
-        setUser(response.data.user || userData);
-        localStorage.setItem('token', token);
-        toast.success('Successfully registered!');
-        return response;
+        // 如果响应数据在data字段中
+        if (response.data.data) {
+          userInfo = response.data.data.user || response.data.data;
+          tokenValue = response.data.data.token;
+        } else {
+          userInfo = response.data.user || response.data;
+          tokenValue = response.data.token;
+        }
+      } else {
+        // 如果响应直接包含数据
+        userInfo = response.user || userData;
+        tokenValue = response.token;
       }
-      throw new Error('Registration failed: Invalid response format');
+
+      // 验证必要的数据
+      if (!userInfo) {
+        throw new Error('Registration failed: User data not received');
+      }
+
+      // 如果有token就保存
+      if (tokenValue) {
+        localStorage.setItem('token', tokenValue);
+        // 设置请求头，这样后续的请求可以带上token
+        http.defaults.headers.common['Authorization'] = `Bearer ${tokenValue}`;
+      }
+
+      // 创建默认乘客信息
+      try {
+        const passengerData = {
+          firstName: userInfo.firstName,
+          lastName: userInfo.lastName,
+          email: userInfo.email,
+          phone: userInfo.phone || null,
+          isDefault: true
+        };
+        
+        await createPassenger(passengerData);
+      } catch (error) {
+        console.error('Failed to create default passenger:', error);
+        // 不要因为创建乘客失败而中断注册流程
+        toast.error('Failed to create passenger information. You can add it later in passenger management.');
+      }
+
+      setUser(userInfo);
+      toast.success('注册成功！');
+      return { user: userInfo, token: tokenValue };
     } catch (error) {
+      console.error('Registration error:', error);
       setError(error.message);
-      toast.error(error.message || 'Failed to register');
+      toast.error(error.response?.data?.message || error.message || '注册失败，请重试');
       throw error;
     }
   }, []);
@@ -142,6 +187,29 @@ export const AuthProvider = ({ children }) => {
     }));
   }, []);
 
+  const getPassengerInfo = useCallback(async () => {
+    try {
+      const response = await getUserPassengers();
+      return response.data || [];
+    } catch (error) {
+      console.error('Failed to get passenger info:', error);
+      toast.error('Failed to load passenger information');
+      return [];
+    }
+  }, []);
+
+  const updatePassengerInfo = useCallback(async (passengers) => {
+    try {
+      const response = await updatePassengers(passengers);
+      toast.success('Passenger information saved successfully');
+      return response;
+    } catch (error) {
+      console.error('Failed to update passenger info:', error);
+      toast.error('Failed to save passenger information');
+      throw error;
+    }
+  }, []);
+
   const value = {
     user,
     loading,
@@ -150,7 +218,9 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
-    updateUserProfile
+    updateUserProfile,
+    getPassengerInfo,
+    updatePassengerInfo
   };
 
   if (loading) {

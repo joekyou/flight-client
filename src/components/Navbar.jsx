@@ -43,6 +43,15 @@ const Navbar = () => {
     }
   };
 
+  const handlePassengersClick = () => {
+    if (!isAuthenticated) {
+      // 保存当前路径，登录后跳转回来
+      navigate('/login', { state: { from: '/passengers' } });
+    } else {
+      navigate('/passengers');
+    }
+  };
+
   return (
     <nav className="bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -72,6 +81,12 @@ const Navbar = () => {
                 className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-900"
               >
                 My Bookings
+              </button>
+              <button
+                onClick={handlePassengersClick}
+                className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-500 hover:text-gray-900"
+              >
+                Passengers
               </button>
             </div>
           </div>
@@ -110,6 +125,18 @@ const Navbar = () => {
                           } block px-4 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100`}
                         >
                           Your Profile
+                        </Link>
+                      )}
+                    </Menu.Item>
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to="/passengers"
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } block px-4 py-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-100`}
+                        >
+                          Passengers
                         </Link>
                       )}
                     </Menu.Item>
