@@ -1,5 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { login as apiLogin, register as apiRegister, logout as apiLogout, checkAuth } from '../services/authApi';
+import { 
+  login as apiLogin, 
+  register as apiRegister, 
+  logout as apiLogout, 
+  checkAuth,
+  updateProfile 
+} from '../services/authApi';
 import { getUserPassengers, updatePassengers, createPassenger } from '../services/passengerApi';
 import { toast } from 'react-toastify';
 import http from '../services/http';
@@ -180,11 +186,19 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const updateUserProfile = useCallback((updatedProfile) => {
-    setUser(prev => ({
-      ...prev,
-      ...updatedProfile
-    }));
+  const updateUserProfile = useCallback(async (updatedProfile) => {
+    try {
+      const response = await updateProfile(updatedProfile);
+      const updatedUser = response.data || response;
+      setUser(prev => ({
+        ...prev,
+        ...updatedUser
+      }));
+      return updatedUser;
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      throw error;
+    }
   }, []);
 
   const getPassengerInfo = useCallback(async () => {
